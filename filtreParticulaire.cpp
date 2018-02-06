@@ -26,7 +26,7 @@ filtreParticulaire::~filtreParticulaire(void)
 }
 
 //declarations of the fonction init 
-void filtreParticulaire::init(double poseInit[3], int nbParticule)
+void filtreParticulaire::init(double poseInit[3], int nbParticule, vector< vector<double> > particule)
 {
 	double gaussienne;
 	for (int i = 0; i < nbParticule; i++)
@@ -46,25 +46,29 @@ void filtreParticulaire::motionUpdate(double delta_x, double delta_theta, double
 {
 	double gaussienne;
 	gaussienne = utils::gaussRnd(0.0, 0.2);
-	poseUpdated[0] = poseUpdated[0] + delta_x * cos(poseUpdated[2] + delta_theta / 2)+ gaussienne;
+	poseUpdated[0] = poseUpdated[0] + delta_x * cos(poseUpdated[2] + delta_theta / 2) + gaussienne;
 	gaussienne = utils::gaussRnd(0.0, 0.2);
 	poseUpdated[1] = poseUpdated[1] + delta_x * sin(poseUpdated[2] + delta_theta / 2) + gaussienne;
 	gaussienne = utils::gaussRnd(0.0, 1);
 	poseUpdated[2] = poseUpdated[2] + delta_theta + gaussienne;
 }
 
-void filtreParticulaire::measurementUpdate((vector<double> &z)
+void filtreParticulaire::measurementUpdate(vector<double> &z, vector< vector<double> > particule, int ScanLidar[55])
 {
-	int SimLidar[55];
+	vector<double> SimLidar;
 	double moySim = 0.0;
 	double moyRel = 0.0;
 	double varRel = 0.0;
 	double varSim = 0.0;
-	
+
 
 	for (int i = 0; i < particule.size(); i++)
 	{
-		utilsLidar.lidarSim(particule[i], SimLidar);
+		double posParticule[3];
+		posParticule[0] = particule[i][0];
+		posParticule[1] = particule[i][1];
+		posParticule[2] = particule[i][2];
+		utilsLidar.lidarSim(posParticule, SimLidar);
 		moySim = 0.0;
 		moyRel = 0.0;
 		varRel = 0.0;
@@ -92,22 +96,26 @@ void filtreParticulaire::measurementUpdate((vector<double> &z)
 			z[i] = varSim / varRel;
 		}
 	}
-	
+
 
 }
 
-void filtreParticulaire::computePose(double *pose[3])
+void filtreParticulaire::computePose(double pose[3], vector< vector<double> > particule, vector<double> poid)
 {
+	int sumFactor, sumFacMultParX, sumFacMultParY, sumFacMultParTheta;
 	for (int i = 0; i < particule.size(); i++)
 	{
-		pose[0] += z[i] * particule[i][0];
-		pose[1] += z[i] * particule[i][1];
-		pose[2] += z[i] * (particule[i][2]%3.6);
+		sumFactor += poid[i];
+		sumFacMultParX += poid[i] * particule[i][0];
+		sumFacMultParY += poid[i] * particule[i][1];
+		sumFacMultParTheta += poid[i] * particule[i][2];
+
+		//pose[2] += z[i] * (particule[i][2] % 3.6);
 	}
-	pose[0] = pose[0] / particule.size();
-	pose[1] = pose[1] / particule.size();
-	pose[2] = pose[2] %3.6/ particule.size();
-	
+	pose[0] = sumFacMultParX / sumFactor;
+	pose[1] = sumFacMultParY / sumFactor;
+	//pose[2] = pose[2] % 3.6 / particule.size();
+
 }
 
 
@@ -117,7 +125,7 @@ MAPS_BEGIN_INPUTS_DEFINITION(MAPSfiltreParticulaire)
 MAPS_INPUT("iConfigXml", MAPSFilterXMLconfigFilenameStruct, MAPS::FifoReader)
 MAPS_INPUT("Delta_x", MAPS::FilterFloat64, MAPS::FifoReader)
 MAPS_INPUT("Delta_theta", MAPS::FilterFloat64, MAPS::FifoReader)
-MAPS_INPUT("Scanlidar", MAPS::FilterFloat64, MAPS::FifoReader)
+MAPS_INPUT("Scanlidar", MAPS::FilterInteger32, MAPS::FifoReader)
 MAPS_END_INPUTS_DEFINITION
 
 // Use the macros to declare the outputs
@@ -179,14 +187,14 @@ MAPS_COMPONENT_DEFINITION(MAPSfiltreParticulaire, "MAPSVraieSemblance", "1.0", 1
 		}
 		else
 		{
-			// faire les inits après chargement de la config ici
+			// faire les inits aprÃ¨s chargement de la config ici
 			utils::initRandom();
 			utilsLidar.initScanLidar(&config);
 		}
 	}
 
 	//Initilizition of the position : inititial position is {0,0,0} with a noise
-	aParticule.init(poseInit, NumberParticle);
+	aParticule.init(poseInit, NumberParticle, particule);
 
 
 }
@@ -218,14 +226,13 @@ void MAPSfiltreParticulaire::Core()
 	// Replace it with another blocking function. (StartReading?)
 	//Rest(500000);
 
-	//test d'un tirage aléatoire gaussien
+	//test d'un tirage alÃ©atoire gaussien
 	/*
 	std::ostringstream strs;
 	double gaussienne= utils::gaussRnd(0.0,1.0);
 	strs<<gaussienne;
 	std::string str="N(mu=0,sigma=1)" + strs.str();
 	ReportInfo(str.c_str());
-
 	// test de simulation d'un scan lidar
 	vector<double> distances;
 	double pose[3]={0,0,0};
@@ -237,35 +244,35 @@ void MAPSfiltreParticulaire::Core()
 	ReportInfo(strs2.str().c_str());
 	*/
 
-	
+
 	//Rtmaps input
 	int inputThatAnswered;
 	MAPSIOElt* ioEltIn = StartReading(3, m_inputs, &inputThatAnswered);
 	if (ioEltIn == NULL)
 		return;
-	if (inputThatAnswered==0) {
-		deltaX= ioEltIn->Float64(0);
+	if (inputThatAnswered == 0) {
+		deltaX = ioEltIn->Float64(0);
 	}
 	if (inputThatAnswered == 1) {
 		deltaTheta = ioEltIn->Float64(0);
 	}
 	if (inputThatAnswered == 2)
 	{
-		int i ;
+		int i;
 		for (i = 0; i < 55; i++)
 		{
 			ScanLidar[i] = ioEltIn->Integer32(i);
 		}
 	}//End of the input
 
-	//Update the actual position
-	aParticule.motionUpdate(deltaX, deltaTheta);
+	 //Update the actual position
+	aParticule.motionUpdate(deltaX, deltaTheta, poseUpdated);
 
 	//Update the mesure: compare the actual position's lidar scan with every particle
-	aParticule.measurementUpdate(poid);
+	aParticule.measurementUpdate(poid, particule, ScanLidar);
 
 	//Calculate the position with the position of the particles and their factor
-	aParticule.computePose(poseUpdated);
+	aParticule.computePose(poseUpdated, particule, poid);
 
 
 
@@ -274,27 +281,23 @@ void MAPSfiltreParticulaire::Core()
 
 
 	//Rtmaps output 
-	int outputThatAnswered;
-	MAPSIOElt* ioEltOut = StartWriting(2, m_inputs, &outputThatAnswered);
-	if (ioEltOut == NULL)
-		return;
-	if (outputThatAnswered == 0)
+	MAPSIOElt* ioEltOut1 = StartWriting(Output("oPoseUpdated"));
+	ioEltOut1->Float32(0) = poseUpdated[0];
+	ioEltOut1->Float32(1) = poseUpdated[1];
+	ioEltOut1->Float32(2) = poseUpdated[2];
+	StopWriting(ioEltOut1);
+
+	MAPSIOElt* ioEltOut2 = StartWriting(Output("oparticule"));
+	for (int i = 0; i < 55; i++)
 	{
-		ioEltOut->Float32(0) = poseUpdated[0];
-		ioEltOut->Float32(1) = poseUpdated[1];
-		ioEltOut->Float32(2) = poseUpdated[2];
+	ioEltOut2->Float64(0) = particule[i][0];
+	ioEltOut2->Float64(1) = particule[i][1];
+	ioEltOut2->Float64(2) = particule[i][2];
 	}
+	StopWriting(ioEltOut2);
+
+
 	
-	if (outputThatAnswered == 1)
-	{
-		for (int i = 0; i < particule.size(); i++)
-		{
-			ioEltOut->Float64(i)(0) = particule[i][0];
-			ioEltOut->Float64(i)(1) = particule[i][1];
-			ioEltOut->Float64(i)(2) = particule[i][2];
-		}
-	}
-	StopWriting(ioEltOut);
 
 }
 
