@@ -20,33 +20,33 @@ public:
 	filtreParticulaire(void);
 	~filtreParticulaire(void);
 
+
 	
-	vector< vector<double> > particule;
-	void filtreParticulaire::motionUpdate(double delta_x, double delta_theta);
-	void filtreParticulaire::init(double pose[3], int nbParticule);
-	void filtreParticulaire::measurementUpdate((vector<double> &z);
-	void filtreParticulaire::computePose(double *pose[3]);
-	void filtreParticulaire::resample();
-	double poseUpdated[3];
+	void filtreParticulaire::motionUpdate(double delta_x, double delta_theta, double poseUpdated[3]);
+	void filtreParticulaire::init(double pose[3], int nbParticule, vector< vector<double> > particule);
+	void filtreParticulaire::measurementUpdate(vector<double> &z, vector< vector<double> > particule, int ScanLidar[55]);
+	void filtreParticulaire::computePose(double pose[3], vector< vector<double> > particule, vector<double> poid);
+	//void filtreParticulaire::resample();
+	
 
 
 
 private:
 	IplImage * _OriginalMap;
 	xmlConfig * config;
-
-	double poseInit[3] = {0,0,0};
-	vector<double> poid;
-
+	
+	
+	
+	
+	
 	utils utilsLidar;
-	filtreParticulaire aParticule;
 
-	int ScanLidar[55];
-	int SimLidar[55];
+
+
+
+
 	
-	double deltaX;
-	double deltaTheta;
-	
+
 
 };
 
@@ -59,16 +59,16 @@ private:
 	xmlConfig config;
 	// Place here your specific methods and attributes
 	utils utilsLidar;
-	MAPSInput*	m_inputs[2];
-	double Pose[3];
-	float Vraisemblance;
-	double gaussienne;
+	MAPSInput*	m_inputs[3];
+	MAPSOutput*	m_outputs[2];
+	vector<double> poid;
+	double poseInit[3] = { 0,0,0 };
+	double poseUpdated[3];
+	double deltaX;
+	double deltaTheta;
+	filtreParticulaire aParticule;
 	int ScanLidar[55];
-	
-	int i;
-	double total,varSim,varRel;
-	double moySim,moyRel;
-	vector<double> SimLidar;
+	vector< vector<double> > particule;
 	utils utils;
 };
 
